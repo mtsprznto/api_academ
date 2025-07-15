@@ -8,7 +8,6 @@ import json
 
 
 load_dotenv()
-client: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_KEY")
@@ -29,26 +28,49 @@ def guardar_db(video_url:str,text: str):
         print(f"Error al guardar en la base de datos: {e}")
         return None
 
-# url_video = "https://www.youtube.com/watch?v=8R-cetf_sZ4"
-# text= transcribe_youtube_audio(url_video)
-# guardar_db(url_video,text)
+
+
+
+
 
 def procesar_videos_desde_json():
     """
-    Procesa los videos desde el archivo JSON, los envia para traducir los videos (obtener texto del video youtube) y luego los guarda en la base de datos.
+    Procesa los videos desde el archivo JSON, los transcribe, guarda en Supabase
+    y elimina los que fueron guardados exitosamente del archivo JSON.
     """
-    with open(JSON_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        video_urls = data.get("videoUrls", [])
+    try:
+        with open(JSON_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            video_urls = data.get("videoUrls", [])
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error al leer JSON: {e}")
+        return
+
+    urls_pendientes = []
 
     for url in video_urls:
         print(f"🎧 Transcribiendo: {url}")
         texto = transcribe_youtube_audio(url)
+
         if texto:
-            guardar_db(url, texto)
+            response = guardar_db(url, texto)
+            # Verificamos si Supabase respondió correctamente
+            if response:
+                print(f"✅ Guardado en DB y eliminado del JSON: {url}")
+                continue  # No lo agregamos a pendientes
+            else:
+                print(f"⚠️ Error al guardar en Supabase: {url}")
+                urls_pendientes.append(url)
         else:
             print(f"⚠️ Falló la transcripción: {url}")
+            urls_pendientes.append(url)
+
+    # Guardamos nuevamente el archivo JSON solo con las URLs pendientes
+    try:
+        with open(JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump({"videoUrls": urls_pendientes}, f, indent=4, ensure_ascii=False)
+        print(f"📝 JSON actualizado. Videos pendientes: {len(urls_pendientes)}")
+    except Exception as e:
+        print(f"Error al actualizar JSON: {e}")
 
 procesar_videos_desde_json()
-
-
