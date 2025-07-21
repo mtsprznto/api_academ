@@ -16,6 +16,8 @@ class ChatRequest(BaseModel):
     chapterId: str
     videoUrl: str
     userMessage: str
+    
+
 #----------
 
 
@@ -93,7 +95,16 @@ async def chat_with_video(data: ChatRequest):
 
     return {"botResponse": bot_response}
 
-
+@app.post("/api/get-videos")
+async def get_videos():
+    """
+    Obtiene todos los videos de la base de datos
+    """
+    response = supabase.table("transcripts").select("video_url").execute()
+    
+    if response.data:
+        return response.data
+    return {"error": "Video no encontrado"}
 
 
 @app.get("/")
